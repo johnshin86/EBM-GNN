@@ -5,10 +5,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dgl import DGLGraph
 from torch.autograd import Function
-from torch.nn.parameter import Parameter 
+from torch.nn.parameter import Parameter
 from dgl.data import citation_graph as citegrh
 import networkx as nx
-from dgl.data import AmazonCoBuy
+#from dgl.data import AmazonCoBuy
 import dgl.data
 import time
 import numpy as np
@@ -50,7 +50,7 @@ class Net(nn.Module):
         self.gcn2 = GCN(16, 7, None)
         self.dropout1 = nn.Dropout(p = 0.4)
         self.dropout2 = nn.Dropout(p = 0.4)
-    
+
     def forward(self, g, features):
         x = self.gcn1(g, features)
         x = self.dropout1(x)
@@ -112,14 +112,14 @@ for epoch in range(100):
     logits = net(g,features)
     logp = F.log_softmax(logits, 1)
     loss = F.nll_loss(logp[train_mask], labels[train_mask])
-    
+
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
-    
+
     if epoch >=3:
         dur.append(time.time() - t0)
-    
+
     acc = evaluate(net, g, features, labels, test_mask)
     print("Epoch {:05d} | Loss {:.4f} | Test Acc {:.4f} | Time(s) {:.4f}".format(
             epoch, loss.item(), acc, np.mean(dur)))
