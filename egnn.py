@@ -30,12 +30,6 @@ class GCN(nn.Module):
     def __init__(self, in_feats, out_feats, activation):
       super(GCN, self).__init__()
       self.apply_mod = NodeApplyModule(in_feats, out_feats, activation)
-      self.beta = Parameter(th.tensor(1.0))
-      self.radius = Parameter(th.tensor(1.0))
-      self.K = Parameter(th.tensor(1.0))
-      self.beta.requiresGrad = True # set requiresGrad to true!
-      self.radius.requiresGrad = True
-      self.K.requiresGrad = True
 
     def forward(self, g,feature):
       g.ndata['h'] = feature
