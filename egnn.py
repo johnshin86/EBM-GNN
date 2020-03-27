@@ -52,6 +52,31 @@ class Net(nn.Module):
         x = self.dropout2(x)
         return x
 
+class msgpass(nn.Module):
+    """
+    A helper message passing class for use with the GNTK
+    """
+    def __init__(self, in_feats):
+      super(msgpass, self).__init__()
+    def forward(self, g,feature):
+      g.ndata['h'] = feature
+      g.update_all(fn.copy_src(src='h', out='m'), fn.mean(msg='m', out='h'))
+      return g.ndata.pop('h')
+
+
+class GNTK(nn.Module):
+    def __init__(self, in_feats):
+        super(GNTK, self).__init__()
+        self.propagate = propagate(in_feats)  
+    
+    def forward(self, g,features):
+        x = self.propagate(g, features) #
+        return x
+
+
+propagate_net = GNTK()
+
+
 
 def load_cora_data():
     data = citegrh.load_cora()
