@@ -93,6 +93,10 @@ net = Net()
 
 g, features, labels, train_mask, test_mask = load_cora_data()
 
+for i in range(len(features)):
+    features[i,:] = features[i,:]/th.norm(features[i,:])
+
+
 
 optimizer = th.optim.Adam(net.parameters(), lr=.005)
 
@@ -105,7 +109,14 @@ for epoch in range(100):
     net.train()
     logits = net(g,features)
     logp = F.log_softmax(logits, 1)
-    loss = F.nll_loss(logp[train_mask], labels[train_mask])
+
+    W0 = net.gcn1.apply_mod.linear.weight
+    W0_n = np.shape(W0)[0]
+    W1 = net.gcn2.apply_mod.linear.weight
+    W1_n = np.shape(W1)[0]
+
+    loss = F.nll_loss(logp[train_mask], labels[train_mask]) + th.norm(th.mm(W0, W0.t()) - th.eye(W0_n)) + th.norm(th.mm(W1, W1.t()) - th.eye(W1_n)) #+ \
+
 
     optimizer.zero_grad()
     loss.backward()
