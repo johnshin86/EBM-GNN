@@ -80,8 +80,11 @@ class GNTK(nn.Module):
     def __init__(self):
       super(GNTK, self).__init__()
     def build(self, g, features):
+        proponce = propagate()
         cov = features @ features.t() #build covariance matrix
+        one_prop = proponce(g, features)
         
+
 
 
 
