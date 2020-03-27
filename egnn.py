@@ -64,13 +64,13 @@ class msgpass(nn.Module):
       return g.ndata.pop('h')
 
 
-class GNTK(nn.Module):
+class propagate(nn.Module):
     def __init__(self, in_feats):
-        super(GNTK, self).__init__()
-        self.propagate = propagate(in_feats)  
+        super(propagate, self).__init__()
+        self.msgpass = msgpass(in_feats)  
     
     def forward(self, g,features):
-        x = self.propagate(g, features) #
+        x = self.msgpass(g, features) #
         return x
 
 
