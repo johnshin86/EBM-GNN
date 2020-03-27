@@ -56,7 +56,7 @@ class msgpass(nn.Module):
     """
     A helper message passing class for use with the GNTK
     """
-    def __init__(self, in_feats):
+    def __init__(self):
       super(msgpass, self).__init__()
     def forward(self, g,feature):
       g.ndata['h'] = feature
@@ -65,16 +65,27 @@ class msgpass(nn.Module):
 
 
 class propagate(nn.Module):
+    """
+    A helper instantiaton class for propagation
+    """
     def __init__(self, in_feats):
         super(propagate, self).__init__()
-        self.msgpass = msgpass(in_feats)  
+        self.msgpass = msgpass()
     
     def forward(self, g,features):
         x = self.msgpass(g, features) #
         return x
 
+class GNTK(nn.Module):
+    def __init__(self):
+      super(GNTK, self).__init__()
+    def build(self, g, features):
+        cov = features @ features.t() #build covariance matrix
+        
 
-propagate_net = GNTK()
+
+
+
 
 
 
