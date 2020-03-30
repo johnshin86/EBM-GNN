@@ -52,7 +52,7 @@ class Net(nn.Module):
         x = self.dropout2(x)
         return x
 
-class msgpass(nn.Module):
+class Msgpass(nn.Module):
     """
     A helper message passing class for use with the GNTK
     """
@@ -64,7 +64,7 @@ class msgpass(nn.Module):
       return g.ndata.pop('h')
 
 
-class propagate(nn.Module):
+class Propagate(nn.Module):
     """
     A helper instantiaton class for propagation
     """
@@ -80,9 +80,9 @@ class GNTK(nn.Module):
     def __init__(self):
       super(GNTK, self).__init__()
     def build(self, g, features):
-        prop_once = propagate()
+        prop_once = Propagate()
         cov = features @ features.t() #build covariance matrix
-        one_prop = prop_once(g, features) #propagate features once
+        one_prop = Prop_once(g, features) #propagate features once
 
 
 
