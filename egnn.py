@@ -84,14 +84,6 @@ class GNTK(nn.Module):
         cov = features @ features.t() #build covariance matrix
         one_prop = Prop_once(g, features) #propagate features once
 
-
-
-
-
-
-
-
-
 def load_cora_data():
     data = citegrh.load_cora()
     features = th.FloatTensor(data.features)
@@ -134,8 +126,6 @@ g, features, labels, train_mask, test_mask = load_cora_data()
 
 for i in range(len(features)):
     features[i,:] = features[i,:]/th.norm(features[i,:])
-
-
 
 optimizer = th.optim.Adam(net.parameters(), lr=.005)
 
