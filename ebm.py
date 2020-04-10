@@ -13,16 +13,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+
+import dgl
+import dgl.data
+from dgl import DGLGraph
+import dgl.function as fn
+#from dgl.data import AmazonCoBuy
+from dgl.data import citation_graph as citegrh
+
+import networkx as nx
+
 import utils
 import torch as t, torch.nn as nn, torch.nn.functional as tnnF, torch.distributions as tdist
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.data.sampler import SubsetRandomSampler
 import torchvision as tv, torchvision.transforms as tr
 import os
 import sys
 import argparse
 #import ipdb
 import numpy as np
-import wideresnet
+#import wideresnet
+import egnn
 import json
 # Sampling
 from tqdm import tqdm
@@ -37,15 +50,22 @@ n_ch = 3
 
 
 class DataSubset(Dataset):
-    def __init__(self, base_dataset, inds=None, size=-1):
-        self.base_dataset = base_dataset
+    def __init__(self, base_dataset, labels=None, inds=None, size=-1):
+        self.base_dataset = base_dataset[inds]
+        self.labels = None
+        if labels is not None:
+            self.labels = labels[inds]
         if inds is None:
             inds = np.random.choice(list(range(len(base_dataset))), size, replace=False)
         self.inds = inds
 
     def __getitem__(self, index):
-        base_ind = self.inds[index]
-        return self.base_dataset[base_ind]
+        #base_ind = self.inds[index]
+        #print(index)
+        if self.labels is None:
+            return self.base_dataset[index]
+        else:
+            return self.base_dataset[index], self.labels[index]
 
     def __len__(self):
         return len(self.inds)
@@ -55,9 +75,10 @@ class F(nn.Module):
     def __init__(self, depth=28, width=2, norm=None, dropout_rate=0.0, n_classes=10):
         super(F, self).__init__()
         #self.f = wideresnet.Wide_ResNet(depth, width, norm=norm, dropout_rate=dropout_rate)
-        self.f = Net()
+
+        self.f = egnn.Net(1433,16,7)
         self.energy_output = nn.Linear(self.f.last_dim, 1)
-        self.class_output = nn.Linear(self.f.last_dim, n_classes)
+        #self.class_output = nn.Linear(self.f.last_dim, n_classes)
 
 
     #need to modify forward for dgl.
@@ -67,15 +88,18 @@ class F(nn.Module):
 
     def classify(self, x):
         penult_z = self.f(x)
-        return self.class_output(penult_z).squeeze()
-
+        logp = F.log_softmax(penult_z, 1)
+        #return self.class_output(penult_z).squeeze()
+        return logp
 
 class CCF(F):
     def __init__(self, depth=28, width=2, norm=None, dropout_rate=0.0, n_classes=10):
         super(CCF, self).__init__(depth, width, norm=norm, dropout_rate=dropout_rate, n_classes=n_classes)
 
-    def forward(self, x, y=None):
-        logits = self.classify(x)
+    def forward(self, g, x, y=None):
+        #logits = self.classify(x)
+        print(x.size())
+        logits = self.f(g,x)
         if y is None:
             return logits.logsumexp(1)
         else:
@@ -109,7 +133,7 @@ def grad_vals(m):
 
 
 def init_random(args, bs):
-    return t.FloatTensor(bs, n_ch, im_sz, im_sz).uniform_(-1, 1)
+    return t.FloatTensor(bs, 1433).uniform_(-1, 1)
 
 
 def get_model_and_buffer(args, device, sample_q):
@@ -204,23 +228,92 @@ def get_data(args):
     return dload_train, dload_train_labeled, dload_valid,dload_test
 
 
+
+
+def get_data_gcn(args):
+    def load_cora_data():
+        '''
+        TODO: Add val mask 
+        '''
+        data = citegrh.load_cora()
+        features = t.FloatTensor(data.features)
+        labels = t.LongTensor(data.labels)
+        train_ind = t.ByteTensor(np.where(np.array(data.train_mask) == 1)[0])
+        test_ind = t.ByteTensor(np.where(np.array(data.test_mask) == 1)[0])
+        train_mask = t.BoolTensor(data.train_mask)
+        test_mask = t.BoolTensor(data.test_mask)
+        #print(data.val_mask)
+        g = data.graph
+        # add self loop
+        g.remove_edges_from(nx.selfloop_edges(g))
+        g = DGLGraph(g)
+        g.add_edges(g.nodes(), g.nodes())
+        return g, features, labels, train_mask, test_mask, train_ind, test_ind
+
+    def load_pubmed_data():
+        data = dgl.data.CitationGraphDataset('pubmed')
+        features = t.FloatTensor(data.features)
+        labels = t.LongTensor(data.labels)
+        train_ind = t.ByteTensor(np.where(np.array(data.train_mask) == 1)[0])
+        test_ind = t.ByteTensor(np.where(np.array(data.test_mask) == 1)[0])
+        train_mask = t.ByteTensor(data.train_mask)
+        test_mask = t.ByteTensor(data.test_mask)
+        g = data.graph
+        # add self loop
+        g.remove_edges_from(nx.selfloop_edges(g))
+        g = DGLGraph(g)
+        g.add_edges(g.nodes(), g.nodes())
+        return g, features, labels, train_ind, test_ind
+
+    def dataset_fn():
+        if args.dataset == "cora":
+            return load_cora_data()
+        elif args.dataset == "pubmed":
+            return load_pubmed_data()
+        
+    g, features, labels, train_mask, test_mask, train_ind, test_ind = dataset_fn()
+    np.random.seed(3210)
+    
+    #Separate out test set
+    dset_train = DataSubset(features, inds=train_mask)
+    dset_test = DataSubset(features, inds=test_mask)
+    dset_train_labeled = DataSubset(features, labels, inds=train_mask)
+    
+    train_sampler = SubsetRandomSampler(train_ind)
+    test_sampler = SubsetRandomSampler(test_ind)
+
+    dload_train = DataLoader(dset_train, num_workers=4, drop_last=True)
+    dload_test = DataLoader(dset_test, num_workers=4, drop_last=True)
+    dload_train_labeled = DataLoader(dset_train_labeled, batch_size=args.batch_size, num_workers=4, drop_last=True)
+    dload_train_labeled = cycle(dload_train_labeled)
+    
+    return g, dload_train, dload_test, dload_train_labeled, features, labels, train_ind, test_ind 
+
+
+
 def get_sample_q(args, device):
     def sample_p_0(replay_buffer, bs, y=None):
+        '''
+        Replaced bs with 2708, confirm with John
+        '''
         if len(replay_buffer) == 0:
             return init_random(args, bs), []
         buffer_size = len(replay_buffer) if y is None else len(replay_buffer) // args.n_classes
-        inds = t.randint(0, buffer_size, (bs,))
+        inds = t.randint(0, buffer_size, (2708,))# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         # if cond, convert inds to class conditional inds
         if y is not None:
             inds = y.cpu() * buffer_size + inds
             assert not args.uncond, "Can't drawn conditional samples without giving me y"
         buffer_samples = replay_buffer[inds]
-        random_samples = init_random(args, bs)
-        choose_random = (t.rand(bs) < args.reinit_freq).float()[:, None, None, None]
+        random_samples = init_random(args, 2708)
+        choose_random = (t.rand(2708) < args.reinit_freq).float()[:, None]
+        #Confused about this step
         samples = choose_random * random_samples + (1 - choose_random) * buffer_samples
+        #print("samples size")
+        #print(samples.size())
         return samples.to(device), inds
 
-    def sample_q(f, replay_buffer, y=None, n_steps=args.n_steps):
+    def sample_q(f, g, replay_buffer, y=None, n_steps=args.n_steps):
         """this func takes in replay_buffer now so we have the option to sample from
         scratch (i.e. replay_buffer==[]).  See test_wrn_ebm.py for example.
         """
@@ -232,7 +325,7 @@ def get_sample_q(args, device):
         x_k = t.autograd.Variable(init_sample, requires_grad=True)
         # sgld
         for k in range(n_steps):
-            f_prime = t.autograd.grad(f(x_k, y=y).sum(), [x_k], retain_graph=True)[0]
+            f_prime = t.autograd.grad(f(g, x_k, y=y).sum(), [x_k], retain_graph=True)[0]
             x_k.data += args.sgld_lr * f_prime + args.sgld_std * t.randn_like(x_k)
         f.train()
         final_samples = x_k.detach()
@@ -268,6 +361,7 @@ def checkpoint(f, buffer, tag, args, device):
 
 
 def main(args):
+    
     utils.makedirs(args.save_dir)
     with open(f'{args.save_dir}/params.txt', 'w') as f:
         json.dump(args.__dict__, f)
@@ -279,18 +373,27 @@ def main(args):
         t.cuda.manual_seed_all(seed)
 
     # datasets
-    dload_train, dload_train_labeled, dload_valid, dload_test = get_data(args)
+    #dload_train, dload_train_labeled, dload_valid, dload_test = get_data(args)
+    g, dload_train, dload_test, dload_train_labeled, features, labels, train_mask, test_mask = get_data_gcn(args)
 
     device = t.device('cuda' if t.cuda.is_available() else 'cpu')
 
+    #DONE TILL HERE!!!!!!!
+    
     sample_q = get_sample_q(args, device)
     f, replay_buffer = get_model_and_buffer(args, device, sample_q)
+
+    print(f)
+    print("Replay buffer shape: {0}".format(replay_buffer.size()))
+
 
     sqrt = lambda x: int(t.sqrt(t.Tensor([x])))
     plot = lambda p, x: tv.utils.save_image(t.clamp(x, -1, 1), p, normalize=True, nrow=sqrt(x.size(0)))
 
     # optimizer
-    params = f.class_output.parameters() if args.clf_only else f.parameters()
+    #params = f.class_output.parameters() if args.clf_only else f.parameters()
+    params = f.parameters()
+    
     if args.optimizer == "adam":
         optim = t.optim.Adam(params, lr=args.lr, betas=[.9, .999], weight_decay=args.weight_decay)
     else:
@@ -298,13 +401,14 @@ def main(args):
 
     best_valid_acc = 0.0
     cur_iter = 0
-    for epoch in range(args.n_epochs):
+    for epoch in range(1): #TODO
         if epoch in args.decay_epochs:
             for param_group in optim.param_groups:
                 new_lr = param_group['lr'] * args.decay_rate
                 param_group['lr'] = new_lr
             print("Decaying lr to {}".format(new_lr))
-        for i, (x_p_d, _) in tqdm(enumerate(dload_train)):
+        for i, (x_p_d) in enumerate(dload_train):
+            print(x_p_d.size())
             if cur_iter <= args.warmup_iters:
                 lr = args.lr * cur_iter / float(args.warmup_iters)
                 for param_group in optim.param_groups:
@@ -312,6 +416,7 @@ def main(args):
 
             x_p_d = x_p_d.to(device)
             x_lab, y_lab = dload_train_labeled.__next__()
+            print(x_lab.size(),y_lab.size())
             x_lab, y_lab = x_lab.to(device), y_lab.to(device)
 
             L = 0.
@@ -321,10 +426,10 @@ def main(args):
                     y_q = t.randint(0, args.n_classes, (args.batch_size,)).to(device)
                     x_q = sample_q(f, replay_buffer, y=y_q)
                 else:
-                    x_q = sample_q(f, replay_buffer)  # sample from log-sumexp
+                    x_q = sample_q(f, g, replay_buffer)  # sample from log-sumexp
 
-                fp_all = f(x_p_d)
-                fq_all = f(x_q)
+                fp_all = f(g,x_p_d)
+                fq_all = f(g,x_q)
                 fp = fp_all.mean()
                 fq = fq_all.mean()
 
@@ -373,7 +478,7 @@ def main(args):
                         y_q = t.randint(0, args.n_classes, (args.batch_size,)).to(device)
                         x_q = sample_q(f, replay_buffer, y=y_q)
                     else:
-                        x_q = sample_q(f, replay_buffer)
+                        x_q = sample_q(f, g, replay_buffer)
                     plot('{}/x_q_{}_{:>06d}.png'.format(args.save_dir, epoch, i), x_q)
                 if args.plot_cond:  # generate class-conditional samples
                     y = t.arange(0, args.n_classes)[None].repeat(args.n_classes, 1).transpose(1, 0).contiguous().view(-1).to(device)
@@ -403,7 +508,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Energy Based Models and Shit")
-    parser.add_argument("--dataset", type=str, default="cifar10", choices=["cifar10", "svhn", "cifar100"])
+    parser.add_argument("--dataset", type=str, default="cifar10", choices=["cora","pubmed"])
     parser.add_argument("--data_root", type=str, default="../data")
     # optimization
     parser.add_argument("--lr", type=float, default=1e-4)
@@ -415,7 +520,7 @@ if __name__ == "__main__":
     parser.add_argument("--labels_per_class", type=int, default=-1,
                         help="number of labeled examples per class, if zero then use all labels")
     parser.add_argument("--optimizer", choices=["adam", "sgd"], default="adam")
-    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=28)
     parser.add_argument("--n_epochs", type=int, default=200)
     parser.add_argument("--warmup_iters", type=int, default=-1,
                         help="number of iters to linearly increase learning rate, if -1 then no warmmup")
