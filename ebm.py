@@ -52,12 +52,10 @@ class DataSubset(Dataset):
 
 
 class F(nn.Module):
-    def __init__(self, depth=28, width=2, norm=None, dropout_rate=0.0, n_classes=10):
+    def __init__(self):
         super(F, self).__init__()
-        #self.f = wideresnet.Wide_ResNet(depth, width, norm=norm, dropout_rate=dropout_rate)
         self.f = Net()
-        self.energy_output = nn.Linear(self.f.last_dim, 1)
-        self.class_output = nn.Linear(self.f.last_dim, n_classes)
+        self.energy_output = nn.Linear(7, 1)
 
 
     #need to modify forward for dgl.
@@ -66,13 +64,12 @@ class F(nn.Module):
         return self.energy_output(penult_z).squeeze()
 
     def classify(self, x):
-        penult_z = self.f(x)
-        return self.class_output(penult_z).squeeze()
+        return self.f(x).squeeze()
 
 
 class CCF(F):
-    def __init__(self, depth=28, width=2, norm=None, dropout_rate=0.0, n_classes=10):
-        super(CCF, self).__init__(depth, width, norm=norm, dropout_rate=dropout_rate, n_classes=n_classes)
+    def __init__(self):
+        super(CCF, self).__init__()
 
     def forward(self, x, y=None):
         logits = self.classify(x)
