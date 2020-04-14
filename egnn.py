@@ -44,6 +44,8 @@ class Net(nn.Module):
         self.gcn2 = GCN(16, 7, None)
         self.dropout1 = nn.Dropout(p = 0.4)
         self.dropout2 = nn.Dropout(p = 0.4)
+        self.energy_output = nn.Linear(7, 1)
+
 
     def forward(self, g, features):
         x = self.gcn1(g, features)
@@ -51,38 +53,6 @@ class Net(nn.Module):
         x = self.gcn2(g, x)
         x = self.dropout2(x)
         return x
-
-class Msgpass(nn.Module):
-    """
-    A helper message passing class for use with the GNTK
-    """
-    def __init__(self):
-      super(msgpass, self).__init__()
-    def forward(self, g,feature):
-      g.ndata['h'] = feature
-      g.update_all(fn.copy_src(src='h', out='m'), fn.mean(msg='m', out='h'))
-      return g.ndata.pop('h')
-
-
-class Propagate(nn.Module):
-    """
-    A helper instantiaton class for propagation
-    """
-    def __init__(self, in_feats):
-        super(propagate, self).__init__()
-        self.msgpass = msgpass()
-    
-    def forward(self, g,features):
-        x = self.msgpass(g, features) #
-        return x
-
-class GNTK(nn.Module):
-    def __init__(self):
-      super(GNTK, self).__init__()
-    def build(self, g, features):
-        prop_once = Propagate()
-        cov = features @ features.t() #build covariance matrix
-        one_prop = Prop_once(g, features) #propagate features once
 
 def load_cora_data():
     data = citegrh.load_cora()
@@ -120,6 +90,9 @@ def evaluate(model, g, features, labels, mask):
         correct = th.sum(indices == labels)
         return correct.item() * 1.0 / len(labels)
 
+def draw_features():
+  return th.FloatTensor(2708, 1433).uniform_(-1, 1)
+
 net = Net()
 
 g, features, labels, train_mask, test_mask = load_cora_data()
@@ -130,30 +103,55 @@ for i in range(len(features)):
 optimizer = th.optim.Adam(net.parameters(), lr=.005)
 
 dur = []
+replay_buffer = []
+sgld_lr = .1
+sgld_std = 1e-2
+rho = 0.05
 
 for epoch in range(100):
     if epoch >=3:
         t0 = time.time()
 
     net.train()
-    logits = net(g,features)
-    logp = F.log_softmax(logits, 1)
-
-    W0 = net.gcn1.apply_mod.linear.weight
-    W0_n = np.shape(W0)[0]
-    W1 = net.gcn2.apply_mod.linear.weight
-    W1_n = np.shape(W1)[0]
-
-    loss = F.nll_loss(logp[train_mask], labels[train_mask]) + th.norm(th.mm(W0, W0.t()) - th.eye(W0_n)) + th.norm(th.mm(W1, W1.t()) - th.eye(W1_n)) #+ \
-
-
     optimizer.zero_grad()
+    logits = net(g, features)
+    logp = F.log_softmax(logits, 1)
+    L_clf = F.nll_loss(logp[train_mask], labels[train_mask])
+    if epoch == 0:
+      new_x = draw_features()
+      x_k = th.autograd.Variable(new_x, requires_grad=True)
+      for k in range(100):
+        f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
+        x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+        replay_buffer.append(x_k)
+    else:
+        flip = random.uniform(0, 1)
+        if flip < 1. - rho:
+          x_k = random.choice(replay_buffer)
+          x_k = th.autograd.Variable(x_k, requires_grad=True)
+          for k in range(100):
+            f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
+            x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+            replay_buffer.append(x_k)
+        else:
+            new_x = draw_features()
+            x_k = th.autograd.Variable(new_x, requires_grad=True)
+            for k in range(100):
+              f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
+              x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+              replay_buffer.append(x_k)
+
+
+
+    L_gen = net(g, features).logsumexp(1).sum() - net(g, x_k).logsumexp(1).sum()
+    loss = L_gen + L_clf    
     loss.backward()
     optimizer.step()
-
+    
     if epoch >=3:
         dur.append(time.time() - t0)
 
+    
     acc = evaluate(net, g, features, labels, test_mask)
     print("Epoch {:05d} | Loss {:.4f} | Test Acc {:.4f} | Time(s) {:.4f}".format(
             epoch, loss.item(), acc, np.mean(dur)))
