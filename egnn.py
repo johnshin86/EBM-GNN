@@ -122,7 +122,7 @@ for epoch in range(100):
       x_k = th.autograd.Variable(new_x, requires_grad=True)
       for k in range(n_steps):
         f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
-        x_k.data -= sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+        x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
         replay_buffer.append(x_k)
     else:
         flip = random.uniform(0, 1)
@@ -132,14 +132,14 @@ for epoch in range(100):
           x_k = th.autograd.Variable(x_k, requires_grad=True)
           for k in range(n_steps):
             f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
-            x_k.data -= sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+            x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
             replay_buffer[i] = x_k
         else:
             new_x = draw_features()
             x_k = th.autograd.Variable(new_x, requires_grad=True)
             for k in range(n_steps):
               f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
-              x_k.data -= sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+              x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
               replay_buffer.append(x_k)
 
 
