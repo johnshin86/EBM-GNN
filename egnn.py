@@ -103,12 +103,12 @@ for i in range(len(features)):
 optimizer = th.optim.Adam(net.parameters(), lr=1e-2)
 
 dur = []
-replay_buffer = []
+replay_buffer = {}
 sgld_lr = 1.
 sgld_std = 1e-2
 rho = 0.05
 n_steps = 20
-batch_size = 12
+batch_size = 1
 for epoch in range(1000):
     if epoch >=3:
         t0 = time.time()
@@ -127,7 +127,7 @@ for epoch in range(1000):
             random_mask = random.sample(range(0, 2708), batch_size)
             f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
             x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-            replay_buffer.append(x_k)
+            replay_buffer[random_mask] = x_k
     else:
         flip = random.uniform(0, 1)
         if flip < 1. - rho:
@@ -138,7 +138,7 @@ for epoch in range(1000):
                 random_mask = random.sample(range(0, 2708), batch_size)
                 f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
                 x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-                replay_buffer[i] = x_k
+                replay_buffer[random_mask] = x_k
         else:
             new_x = draw_features()
             x_k = th.autograd.Variable(new_x, requires_grad=True)
@@ -146,7 +146,7 @@ for epoch in range(1000):
                 random_mask = random.sample(range(0, 2708), batch_size)
                 f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
                 x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-                replay_buffer.append(x_k)
+                replay_buffer[random_mask] = x_k
 
 
 
