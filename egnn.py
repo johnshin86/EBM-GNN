@@ -13,6 +13,7 @@ import dgl.data
 import time
 import numpy as np
 import scipy.sparse
+import random
 
 class NodeApplyModule(nn.Module):
     def __init__(self, in_feats, out_feats, activation):
@@ -111,7 +112,7 @@ sgld_lr = 1.
 sgld_std = 1e-2
 rho = 0.05
 n_steps = 20
-batch_size = 1
+random_batch = 1
 for epoch in range(1000):
     if epoch >=3:
         t0 = time.time()
@@ -173,11 +174,11 @@ for epoch in range(1000):
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
-    
+
     if epoch >=3:
         dur.append(time.time() - t0)
 
-    
+
     acc = evaluate(net, g, features, labels, test_mask)
     print("Epoch {:05d} | Loss {:.4f} | Test Acc {:.4f} | Time(s) {:.4f}".format(
             epoch, loss.item(), acc, np.mean(dur)))
