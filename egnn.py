@@ -94,6 +94,17 @@ def evaluate(model, g, features, labels, mask):
 def draw_features():
   return th.FloatTensor(1433).uniform_(-.0001, .0001)
 
+def sgld(n_steps, x_k, random_mask):
+    for k in range(n_steps):
+        out = net(g,x_k)
+        f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
+        f_prime[ th.arange(len(f_prime)) != random_mask].zero_()
+        noise = th.randn_like(x_k)
+        noise[ th.arange(len(noise)) != random_mask].zero_()
+        x_k.data += sgld_lr * f_prime + sgld_std * noise
+        return x_k
+            
+
 net = Net()
 net = net.to('cuda:0')
 features = features.to('cuda:0')
@@ -130,14 +141,9 @@ for epoch in range(1000):
         x_k = features.clone()
         x_k[random_mask] = new_row
         x_k = th.autograd.Variable(x_k, requires_grad=True)
-        for k in range(n_steps):
-            out = net(g,x_k)
-            f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
-            f_prime[ th.arange(len(f_prime)) != random_mask].zero_()
-            noise = th.randn_like(x_k)
-            noise[ th.arange(len(noise)) != random_mask].zero_()
-            x_k.data += sgld_lr * f_prime + sgld_std * noise
-            replay_buffer[str(random_mask[0])] = x_k
+        x_k = sgld(n_steps, x_k, random_mask)
+        replay_buffer[str(random_mask[0])] = x_k
+        
     else:
         flip = random.uniform(0, 1)
         if flip < 1 - rho:
@@ -146,14 +152,8 @@ for epoch in range(1000):
             x_k = th.autograd.Variable(x_k, requires_grad=True)
             #random_mask = int(key[1:-1])
             random_mask = int(key)
-            for k in range(n_steps):
-                out = net(g,x_k)
-                f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
-                f_prime[ th.arange(len(f_prime)) != random_mask].zero_()
-                noise = th.randn_like(x_k)
-                noise[ th.arange(len(noise)) != random_mask].zero_()
-                x_k.data += sgld_lr * f_prime + sgld_std * noise
-                replay_buffer[key] = x_k
+            x_k = sgld(n_steps, x_k, random_mask)
+            replay_buffer[key] = x_k
         else:
             new_row = draw_features()
             new_row = new_row.to('cuda:0')
@@ -161,14 +161,8 @@ for epoch in range(1000):
             x_k = features.clone()
             x_k[random_mask] = new_row
             x_k = th.autograd.Variable(x_k, requires_grad=True)
-            for k in range(n_steps):
-                out = net(g,x_k)
-                f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
-                f_prime[ th.arange(len(f_prime)) != random_mask].zero_()
-                noise = th.randn_like(x_k)
-                noise[ th.arange(len(noise)) != random_mask].zero_()
-                x_k.data += sgld_lr * f_prime + sgld_std * noise
-                replay_buffer[str(random_mask[0])] = x_k
+            x_k = sgld(n_steps, x_k, random_mask)
+            replay_buffer[str(random_mask[0])] = x_k
 
     L_gen = -(net(g, features).logsumexp(1)[random_mask] - net(g, x_k).logsumexp(1)[random_mask])
     loss = L_gen + L_clf
