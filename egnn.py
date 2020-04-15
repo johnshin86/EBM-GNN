@@ -132,6 +132,7 @@ for epoch in range(1000):
         for k in range(n_steps):
             out = net(g,x_k)
             f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
+            f_prime[ th.arange(len(f_prime)) != random_mask].zero_()
             x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
             replay_buffer[str(random_mask)] = x_k
     else:
@@ -144,6 +145,7 @@ for epoch in range(1000):
             for k in range(n_steps):
                 out = net(g,x_k)
                 f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
+                f_prime[ th.arange(len(f_prime)) != random_mask].zero_()
                 x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
                 replay_buffer[key] = x_k
         else:
@@ -156,6 +158,7 @@ for epoch in range(1000):
             for k in range(n_steps):
                 out = net(g,x_k)
                 f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
+                f_prime[ th.arange(len(f_prime)) != random_mask].zero_()
                 x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
                 replay_buffer[str(random_mask)] = x_k
 
