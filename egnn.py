@@ -137,14 +137,15 @@ for epoch in range(1000):
             noise = th.randn_like(x_k)
             noise[ th.arange(len(noise)) != random_mask].zero_()
             x_k.data += sgld_lr * f_prime + sgld_std * noise
-            replay_buffer[str(random_mask)] = x_k
+            replay_buffer[str(random_mask[0])] = x_k
     else:
         flip = random.uniform(0, 1)
         if flip < 1 - rho:
             key = random.choice(list(replay_buffer))
             x_k = replay_buffer[key]
             x_k = th.autograd.Variable(x_k, requires_grad=True)
-            random_mask = int(key[1:-1])
+            #random_mask = int(key[1:-1])
+            random_mask = int(key)
             for k in range(n_steps):
                 out = net(g,x_k)
                 f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
@@ -167,7 +168,7 @@ for epoch in range(1000):
                 noise = th.randn_like(x_k)
                 noise[ th.arange(len(noise)) != random_mask].zero_()
                 x_k.data += sgld_lr * f_prime + sgld_std * noise
-                replay_buffer[str(random_mask)] = x_k
+                replay_buffer[str(random_mask[0])] = x_k
 
     L_gen = -(net(g, features).logsumexp(1)[random_mask] - net(g, x_k).logsumexp(1)[random_mask])
     loss = L_gen + L_clf
