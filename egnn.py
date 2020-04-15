@@ -113,7 +113,6 @@ for epoch in range(100):
         t0 = time.time()
 
     net.train()
-    optimizer.zero_grad()
     logits = net(g, features)
     logp = F.log_softmax(logits, 1)
     L_clf = F.nll_loss(logp[train_mask], labels[train_mask])
@@ -145,7 +144,8 @@ for epoch in range(100):
 
 
     L_gen = net(g, features).logsumexp(1).sum() - net(g, x_k).logsumexp(1).sum()
-    loss = L_gen + L_clf    
+    loss = L_gen + L_clf
+    optimizer.zero_grad()
     loss.backward()
     optimizer.step()
     
