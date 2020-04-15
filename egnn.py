@@ -108,6 +108,7 @@ sgld_lr = 1.
 sgld_std = 1e-2
 rho = 0.05
 n_steps = 20
+batch_size = 12
 for epoch in range(1000):
     if epoch >=3:
         t0 = time.time()
@@ -123,8 +124,8 @@ for epoch in range(1000):
         new_x = draw_features()
         x_k = th.autograd.Variable(new_x, requires_grad=True)
         for k in range(n_steps):
-            random_mask = random.sample(range(0, 2708), 12)
-            f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask], [x_k],retain_graph=True)[0]
+            random_mask = random.sample(range(0, 2708), batch_size)
+            f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
             x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
             replay_buffer.append(x_k)
     else:
@@ -134,16 +135,16 @@ for epoch in range(1000):
             x_k = replay_buffer[i]
             x_k = th.autograd.Variable(x_k, requires_grad=True)
             for k in range(n_steps):
-                random_mask = random.sample(range(0, 2708), 12)
-                f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask], [x_k],retain_graph=True)[0]
+                random_mask = random.sample(range(0, 2708), batch_size)
+                f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
                 x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
                 replay_buffer[i] = x_k
         else:
             new_x = draw_features()
             x_k = th.autograd.Variable(new_x, requires_grad=True)
             for k in range(n_steps):
-                random_mask = random.sample(range(0, 2708), 12)
-                f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask], [x_k],retain_graph=True)[0]
+                random_mask = random.sample(range(0, 2708), batch_size)
+                f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
                 x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
                 replay_buffer.append(x_k)
 
