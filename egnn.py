@@ -102,7 +102,7 @@ def sgld(n_steps, x_k, random_mask):
         noise = th.randn_like(x_k)
         noise[ th.arange(len(noise)) != random_mask].zero_()
         x_k.data += sgld_lr * f_prime + sgld_std * noise
-        return x_k
+    return x_k
             
 
 net = Net()
