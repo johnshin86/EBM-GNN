@@ -144,7 +144,7 @@ for epoch in range(100):
 
 
 
-    L_gen = net(g, features).logsumexp(1).sum() - net(g, x_k).logsumexp(1).sum()
+    L_gen = th.abs(net(g, features).logsumexp(1).sum() - net(g, x_k).logsumexp(1).sum())
     loss = L_gen + L_clf    
     loss.backward()
     optimizer.step()
