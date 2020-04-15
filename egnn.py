@@ -153,7 +153,7 @@ for epoch in range(1000):
 
 
 
-    L_gen = net(g, features).logsumexp(1)[random_mask] - net(g, x_k).logsumexp(1)[random_mask]
+    L_gen = -(net(g, features).logsumexp(1)[random_mask] - net(g, x_k).logsumexp(1)[random_mask])
     loss = L_gen + L_clf
     optimizer.zero_grad()
     loss.backward()
