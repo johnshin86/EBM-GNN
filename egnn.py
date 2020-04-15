@@ -131,8 +131,10 @@ for epoch in range(1000):
     else:
         flip = random.uniform(0, 1)
         if flip < 1. - rho:
-            i = random.choice(range(len(replay_buffer)))
-            x_k = replay_buffer[i]
+            #i = random.choice(range(len(replay_buffer)))
+            #x_k = replay_buffer[i]
+            key = random.choice(list(replay_buffer))
+            x_k = replay_buffer[key]
             x_k = th.autograd.Variable(x_k, requires_grad=True)
             for k in range(n_steps):
                 random_mask = random.sample(range(0, 2708), batch_size)
