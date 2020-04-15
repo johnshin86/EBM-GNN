@@ -123,30 +123,6 @@ for epoch in range(1000):
     if epoch % 100 == 0:
       sgld_lr *= .1
     if epoch == 0:
-      new_row = draw_features()
-      new_row = new_row.to('cuda:0')
-      random_mask = random.sample(range(0, 2708), random_batch)
-      x_k = features.clone()
-      x_k[random_mask] = new_row
-      x_k = th.autograd.Variable(x_k, requires_grad=True)
-      for k in range(n_steps):
-        out = net(g,x_k)
-        f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
-        x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-        replay_buffer[str(random_mask)] = x_k
-    else:
-      flip = random.uniform(0, 1)
-      if flip < 1 - rho:
-        key = random.choice(list(replay_buffer))
-        x_k = replay_buffer[key]
-        x_k = th.autograd.Variable(x_k, requires_grad=True)
-        random_mask = int(key[1:-1])
-        for k in range(n_steps):
-          out = net(g,x_k)
-          f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
-          x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-          replay_buffer[key] = x_k
-      else:
         new_row = draw_features()
         new_row = new_row.to('cuda:0')
         random_mask = random.sample(range(0, 2708), random_batch)
@@ -154,10 +130,34 @@ for epoch in range(1000):
         x_k[random_mask] = new_row
         x_k = th.autograd.Variable(x_k, requires_grad=True)
         for k in range(n_steps):
-          out = net(g,x_k)
-          f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
-          x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-          replay_buffer[str(random_mask)] = x_k
+            out = net(g,x_k)
+            f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
+            x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+            replay_buffer[str(random_mask)] = x_k
+    else:
+        flip = random.uniform(0, 1)
+        if flip < 1 - rho:
+            key = random.choice(list(replay_buffer))
+            x_k = replay_buffer[key]
+            x_k = th.autograd.Variable(x_k, requires_grad=True)
+            random_mask = int(key[1:-1])
+            for k in range(n_steps):
+                out = net(g,x_k)
+                f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
+                x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+                replay_buffer[key] = x_k
+        else:
+            new_row = draw_features()
+            new_row = new_row.to('cuda:0')
+            random_mask = random.sample(range(0, 2708), random_batch)
+            x_k = features.clone()
+            x_k[random_mask] = new_row
+            x_k = th.autograd.Variable(x_k, requires_grad=True)
+            for k in range(n_steps):
+                out = net(g,x_k)
+                f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
+                x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+                replay_buffer[str(random_mask)] = x_k
 
     L_gen = -(net(g, features).logsumexp(1)[random_mask] - net(g, x_k).logsumexp(1)[random_mask])
     loss = L_gen + L_clf
