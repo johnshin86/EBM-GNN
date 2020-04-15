@@ -91,7 +91,7 @@ def evaluate(model, g, features, labels, mask):
         return correct.item() * 1.0 / len(labels)
 
 def draw_features():
-  return th.FloatTensor(2708, 1433).uniform_(.0001, .0001)
+  return th.FloatTensor(2708, 1433).bernoulli_(p=0.01)
 
 net = Net()
 
