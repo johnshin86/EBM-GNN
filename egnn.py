@@ -123,11 +123,11 @@ for epoch in range(1000):
     if epoch == 0:
         new_x = draw_features()
         x_k = th.autograd.Variable(new_x, requires_grad=True)
+        random_mask = random.sample(range(0, 2708), batch_size)
         for k in range(n_steps):
-            random_mask = random.sample(range(0, 2708), batch_size)
             f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
             x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-            replay_buffer[random_mask] = x_k
+            replay_buffer[str(random_mask)] = x_k
     else:
         flip = random.uniform(0, 1)
         if flip < 1. - rho:
@@ -136,16 +136,17 @@ for epoch in range(1000):
             key = random.choice(list(replay_buffer))
             x_k = replay_buffer[key]
             x_k = th.autograd.Variable(x_k, requires_grad=True)
+            random_mask = int(key[1:-1])
             for k in range(n_steps):
-                random_mask = random.sample(range(0, 2708), batch_size)
+                #random_mask = random.sample(range(0, 2708), batch_size)
                 f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
                 x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-                replay_buffer[random_mask] = x_k
+                replay_buffer[str(random_mask)] = x_k
         else:
             new_x = draw_features()
             x_k = th.autograd.Variable(new_x, requires_grad=True)
+            random_mask = random.sample(range(0, 2708), batch_size)
             for k in range(n_steps):
-                random_mask = random.sample(range(0, 2708), batch_size)
                 f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
                 x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
                 replay_buffer[random_mask] = x_k
