@@ -91,7 +91,7 @@ def evaluate(model, g, features, labels, mask):
         return correct.item() * 1.0 / len(labels)
 
 def draw_features():
-  return th.FloatTensor(2708, 1433).uniform_(-1, 1)
+  return th.FloatTensor(2708, 1433).uniform_(.0001, .0001)
 
 net = Net()
 
@@ -100,15 +100,15 @@ g, features, labels, train_mask, test_mask = load_cora_data()
 for i in range(len(features)):
     features[i,:] = features[i,:]/th.norm(features[i,:])
 
-optimizer = th.optim.Adam(net.parameters(), lr=.005)
+optimizer = th.optim.Adam(net.parameters(), lr=1e-2)
 
 dur = []
 replay_buffer = []
-sgld_lr = .1
+sgld_lr = 1.
 sgld_std = 1e-2
 rho = 0.05
 n_steps = 20
-for epoch in range(100):
+for epoch in range(1000):
     if epoch >=3:
         t0 = time.time()
 
@@ -116,11 +116,15 @@ for epoch in range(100):
     logits = net(g, features)
     logp = F.log_softmax(logits, 1)
     L_clf = F.nll_loss(logp[train_mask], labels[train_mask])
+    if epoch % 100 == 0.:
+        sgld_lr *= .1
+
     if epoch == 0:
         new_x = draw_features()
         x_k = th.autograd.Variable(new_x, requires_grad=True)
         for k in range(n_steps):
-            f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
+            random_mask = random.choice(range(2708))
+            f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask], [x_k],retain_graph=True)[0]
             x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
             replay_buffer.append(x_k)
     else:
@@ -130,20 +134,22 @@ for epoch in range(100):
             x_k = replay_buffer[i]
             x_k = th.autograd.Variable(x_k, requires_grad=True)
             for k in range(n_steps):
-                f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
+                random_mask = random.choice(range(2708))
+                f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask], [x_k],retain_graph=True)[0]
                 x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
                 replay_buffer[i] = x_k
         else:
             new_x = draw_features()
             x_k = th.autograd.Variable(new_x, requires_grad=True)
             for k in range(n_steps):
-                f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
+                random_mask = random.choice(range(2708))
+                f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask], [x_k],retain_graph=True)[0]
                 x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
                 replay_buffer.append(x_k)
 
 
 
-    L_gen = net(g, features).logsumexp(1).sum() - net(g, x_k).logsumexp(1).sum()
+    L_gen = net(g, features).logsumexp(1)[random_mask] - net(g, x_k).logsumexp(1)[random_mask]
     loss = L_gen + L_clf
     optimizer.zero_grad()
     loss.backward()
