@@ -103,6 +103,14 @@ def sgld(n_steps, x_k, random_mask):
         noise[ th.arange(len(noise)) != random_mask].zero_()
         x_k.data += sgld_lr * f_prime + sgld_std * noise
     return x_k
+
+def draw_rows(random_batch):
+  rows = []
+  for i in range(random_batch):
+    new_row = draw_features()
+    new_row = new_row.to('cuda:0')
+    rows.append(new_row)
+  return rows
             
 
 net = Net()
@@ -135,34 +143,38 @@ for epoch in range(1000):
     if epoch % 100 == 0:
       sgld_lr *= .1
     if epoch == 0:
-        new_row = draw_features()
-        new_row = new_row.to('cuda:0')
+        rows = draw_rows(random_batch)
         random_mask = random.sample(range(0, 2708), random_batch)
         x_k = features.clone()
-        x_k[random_mask] = new_row
+        for i, j in zip(random_mask, range(len(random_mask))):
+          x_k[i] = rows[j]
         x_k = th.autograd.Variable(x_k, requires_grad=True)
         x_k = sgld(n_steps, x_k, random_mask)
-        replay_buffer[str(random_mask[0])] = x_k
+        for i in random_mask:
+          replay_buffer[str(i)] = x_k[i]
         
     else:
         flip = random.uniform(0, 1)
         if flip < 1 - rho:
-            key = random.choice(list(replay_buffer))
-            x_k = replay_buffer[key]
+            x_k = features.clone()
+            keys = random.choices(list(replay_buffer), k = random_batch)
+            for key in keys:
+              x_k[int(key)] = replay_buffer[key]
             x_k = th.autograd.Variable(x_k, requires_grad=True)
-            #random_mask = int(key[1:-1])
-            random_mask = int(key)
+            random_mask = [int(key) for key in keys]
             x_k = sgld(n_steps, x_k, random_mask)
-            replay_buffer[key] = x_k
+            for key in keys:
+              replay_buffer[key] = x_k[int(key)]
         else:
-            new_row = draw_features()
-            new_row = new_row.to('cuda:0')
+            rows = draw_rows(random_batch)
             random_mask = random.sample(range(0, 2708), random_batch)
             x_k = features.clone()
-            x_k[random_mask] = new_row
+            for i, j in zip(random_mask, range(len(random_mask))):
+              x_k[i] = rows[j]
             x_k = th.autograd.Variable(x_k, requires_grad=True)
             x_k = sgld(n_steps, x_k, random_mask)
-            replay_buffer[str(random_mask[0])] = x_k
+            for i in random_mask:
+              replay_buffer[str(i)] = x_k[i]
 
     L_gen = -(net(g, features).logsumexp(1)[random_mask] - net(g, x_k).logsumexp(1)[random_mask])
     loss = L_gen + L_clf
