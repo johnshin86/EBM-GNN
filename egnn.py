@@ -91,9 +91,12 @@ def evaluate(model, g, features, labels, mask):
         return correct.item() * 1.0 / len(labels)
 
 def draw_features():
-  return th.FloatTensor(2708, 1433).uniform_(-.0001,.0001)
+  return th.FloatTensor(1433).uniform_(-.0001, .0001)
 
 net = Net()
+net = net.to('cuda:0')
+features = features.to('cuda:0')
+labels = labels.to('cuda:0')
 
 g, features, labels, train_mask, test_mask = load_cora_data()
 
@@ -117,41 +120,44 @@ for epoch in range(1000):
     logits = net(g, features)
     logp = F.log_softmax(logits, 1)
     L_clf = F.nll_loss(logp[train_mask], labels[train_mask])
-    if epoch % 100 == 0.:
-        sgld_lr *= .1
-
+    if epoch % 100 == 0:
+      sgld_lr *= .1
     if epoch == 0:
-        new_x = draw_features()
-        x_k = th.autograd.Variable(new_x, requires_grad=True)
-        random_mask = random.sample(range(0, 2708), batch_size)
-        for k in range(n_steps):
-            f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
-            x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-            replay_buffer[str(random_mask)] = x_k
+      new_row = draw_features()
+      new_row = new_row.to('cuda:0')
+      random_mask = random.sample(range(0, 2708), random_batch)
+      x_k = features.clone()
+      x_k[random_mask] = new_row
+      x_k = th.autograd.Variable(x_k, requires_grad=True)
+      for k in range(n_steps):
+        out = net(g,x_k)
+        f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
+        x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+        replay_buffer[str(random_mask)] = x_k
     else:
-        flip = random.uniform(0, 1)
-        if flip < 1. - rho:
-            #i = random.choice(range(len(replay_buffer)))
-            #x_k = replay_buffer[i]
-            key = random.choice(list(replay_buffer))
-            x_k = replay_buffer[key]
-            x_k = th.autograd.Variable(x_k, requires_grad=True)
-            random_mask = int(key[1:-1])
-            for k in range(n_steps):
-                #random_mask = random.sample(range(0, 2708), batch_size)
-                f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
-                x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-                replay_buffer[key] = x_k
-        else:
-            new_x = draw_features()
-            x_k = th.autograd.Variable(new_x, requires_grad=True)
-            random_mask = random.sample(range(0, 2708), batch_size)
-            for k in range(n_steps):
-                f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
-                x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-                replay_buffer[str(random_mask)] = x_k
-
-
+      flip = random.uniform(0, 1)
+      if flip < 1 - rho:
+        key = random.choice(list(replay_buffer))
+        x_k = replay_buffer[key]
+        x_k = th.autograd.Variable(x_k, requires_grad=True)
+        random_mask = int(key[1:-1])
+        for k in range(n_steps):
+          out = net(g,x_k)
+          f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
+          x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+          replay_buffer[key] = x_k
+      else:
+        new_row = draw_features()
+        new_row = new_row.to('cuda:0')
+        random_mask = random.sample(range(0, 2708), random_batch)
+        x_k = features.clone()
+        x_k[random_mask] = new_row
+        x_k = th.autograd.Variable(x_k, requires_grad=True)
+        for k in range(n_steps):
+          out = net(g,x_k)
+          f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
+          x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+          replay_buffer[str(random_mask)] = x_k
 
     L_gen = -(net(g, features).logsumexp(1)[random_mask] - net(g, x_k).logsumexp(1)[random_mask])
     loss = L_gen + L_clf
