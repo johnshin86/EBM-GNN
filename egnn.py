@@ -117,29 +117,29 @@ for epoch in range(100):
     logp = F.log_softmax(logits, 1)
     L_clf = F.nll_loss(logp[train_mask], labels[train_mask])
     if epoch == 0:
-      new_x = draw_features()
-      x_k = th.autograd.Variable(new_x, requires_grad=True)
-      for k in range(n_steps):
-        f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
-        x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-        replay_buffer.append(x_k)
+        new_x = draw_features()
+        x_k = th.autograd.Variable(new_x, requires_grad=True)
+        for k in range(n_steps):
+            f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
+            x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+            replay_buffer.append(x_k)
     else:
         flip = random.uniform(0, 1)
         if flip < 1. - rho:
-          i = random.choice(range(len(replay_buffer)))
-          x_k = replay_buffer[i]
-          x_k = th.autograd.Variable(x_k, requires_grad=True)
-          for k in range(n_steps):
-            f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
-            x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-            replay_buffer[i] = x_k
+            i = random.choice(range(len(replay_buffer)))
+            x_k = replay_buffer[i]
+            x_k = th.autograd.Variable(x_k, requires_grad=True)
+            for k in range(n_steps):
+                f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
+                x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+                replay_buffer[i] = x_k
         else:
             new_x = draw_features()
             x_k = th.autograd.Variable(new_x, requires_grad=True)
             for k in range(n_steps):
-              f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
-              x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
-              replay_buffer.append(x_k)
+                f_prime = th.autograd.grad(net(g,x_k).logsumexp(1).sum(), [x_k],retain_graph=True)[0]
+                x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+                replay_buffer.append(x_k)
 
 
 
