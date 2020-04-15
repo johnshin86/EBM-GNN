@@ -123,7 +123,7 @@ for epoch in range(1000):
         new_x = draw_features()
         x_k = th.autograd.Variable(new_x, requires_grad=True)
         for k in range(n_steps):
-            random_mask = random.choice(range(2708))
+            random_mask = random.sample(range(0, 2708), 12)
             f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask], [x_k],retain_graph=True)[0]
             x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
             replay_buffer.append(x_k)
@@ -134,7 +134,7 @@ for epoch in range(1000):
             x_k = replay_buffer[i]
             x_k = th.autograd.Variable(x_k, requires_grad=True)
             for k in range(n_steps):
-                random_mask = random.choice(range(2708))
+                random_mask = random.sample(range(0, 2708), 12)
                 f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask], [x_k],retain_graph=True)[0]
                 x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
                 replay_buffer[i] = x_k
@@ -142,7 +142,7 @@ for epoch in range(1000):
             new_x = draw_features()
             x_k = th.autograd.Variable(new_x, requires_grad=True)
             for k in range(n_steps):
-                random_mask = random.choice(range(2708))
+                random_mask = random.sample(range(0, 2708), 12)
                 f_prime = th.autograd.grad(net(g,x_k).logsumexp(1)[random_mask], [x_k],retain_graph=True)[0]
                 x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
                 replay_buffer.append(x_k)
