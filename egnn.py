@@ -176,7 +176,7 @@ for epoch in range(1000):
             for i in random_mask:
               replay_buffer[str(i)] = x_k[i]
 
-    L_gen = -(net(g, features).logsumexp(1)[random_mask] - net(g, x_k).logsumexp(1)[random_mask])
+    L_gen = th.abs(net(g, features).logsumexp(1)[random_mask].sum()/net(g, features).logsumexp(1).sum() - net(g, x_k).logsumexp(1)[random_mask].sum()/net(g, x_k).logsumexp(1).sum())
     loss = L_gen + L_clf
     optimizer.zero_grad()
     loss.backward()
@@ -187,5 +187,7 @@ for epoch in range(1000):
 
 
     acc = evaluate(net, g, features, labels, test_mask)
-    print("Epoch {:05d} | Loss {:.4f} | Test Acc {:.4f} | Time(s) {:.4f}".format(
+    if epoch % 50 == 0:
+      print("Training Hybrid")
+      print("Epoch {:05d} | Loss {:.4f} | Test Acc {:.4f} | Time(s) {:.4f}".format(
             epoch, loss.item(), acc, np.mean(dur)))
