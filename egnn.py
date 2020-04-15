@@ -133,7 +133,9 @@ for epoch in range(1000):
             out = net(g,x_k)
             f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
             f_prime[ th.arange(len(f_prime)) != random_mask].zero_()
-            x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+            noise = th.randn_like(x_k)
+            noise[ th.arange(len(noise)) != random_mask].zero_()
+            x_k.data += sgld_lr * f_prime + sgld_std * noise
             replay_buffer[str(random_mask)] = x_k
     else:
         flip = random.uniform(0, 1)
@@ -146,7 +148,9 @@ for epoch in range(1000):
                 out = net(g,x_k)
                 f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
                 f_prime[ th.arange(len(f_prime)) != random_mask].zero_()
-                x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+                noise = th.randn_like(x_k)
+                noise[ th.arange(len(noise)) != random_mask].zero_()
+                x_k.data += sgld_lr * f_prime + sgld_std * noise
                 replay_buffer[key] = x_k
         else:
             new_row = draw_features()
@@ -159,7 +163,9 @@ for epoch in range(1000):
                 out = net(g,x_k)
                 f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
                 f_prime[ th.arange(len(f_prime)) != random_mask].zero_()
-                x_k.data += sgld_lr * f_prime + sgld_std * th.randn_like(x_k)
+                noise = th.randn_like(x_k)
+                noise[ th.arange(len(noise)) != random_mask].zero_()
+                x_k.data += sgld_lr * f_prime + sgld_std * noise
                 replay_buffer[str(random_mask)] = x_k
 
     L_gen = -(net(g, features).logsumexp(1)[random_mask] - net(g, x_k).logsumexp(1)[random_mask])
