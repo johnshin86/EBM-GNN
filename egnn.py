@@ -109,7 +109,7 @@ def draw_rows(random_batch, dim):
     new_row = new_row.to('cuda:0')
     rows.append(new_row)
   return rows
-            
+
 
 
 
@@ -118,7 +118,6 @@ g, features, labels, train_mask, test_mask = load_cora_data()
 for i in range(len(features)):
     features[i,:] = features[i,:]/th.norm(features[i,:])
 
-optimizer = th.optim.Adam(net.parameters(), lr=1e-2)
 
 dur = []
 replay_buffer = {}
@@ -134,6 +133,8 @@ net = Net(num_features)
 net = net.to('cuda:0')
 features = features.to('cuda:0')
 labels = labels.to('cuda:0')
+optimizer = th.optim.Adam(net.parameters(), lr=1e-2)
+
 
 for epoch in range(1000):
     if epoch >=3:
@@ -146,7 +147,7 @@ for epoch in range(1000):
     if epoch % 100 == 0:
       sgld_lr *= .1
     if epoch == 0:
-        rows = draw_rows(random_batch, dim)
+        rows = draw_rows(random_batch, num_features)
         random_mask = random.sample(range(0, num_nodes), random_batch)
         x_k = features.clone()
         for i, j in zip(random_mask, range(len(random_mask))):
@@ -155,7 +156,7 @@ for epoch in range(1000):
         x_k = sgld(n_steps, x_k, random_mask)
         for i in random_mask:
           replay_buffer[str(i)] = x_k[i]
-        
+
     else:
         flip = random.uniform(0, 1)
         if flip < 1 - rho:
@@ -169,7 +170,7 @@ for epoch in range(1000):
             for key in keys:
               replay_buffer[key] = x_k[int(key)]
         else:
-            rows = draw_rows(random_batch, dim)
+            rows = draw_rows(random_batch, num_features)
             random_mask = random.sample(range(0, num_nodes), random_batch)
             x_k = features.clone()
             for i, j in zip(random_mask, range(len(random_mask))):
