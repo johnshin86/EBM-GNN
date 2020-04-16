@@ -39,14 +39,12 @@ class GCN(nn.Module):
       return g.ndata.pop('h')
 
 class Net(nn.Module):
-    def __init__(self):
+    def __init__(self, graph_features):
         super(Net, self).__init__()
-        self.gcn1 = GCN(1433, 16, None)
+        self.gcn1 = GCN(graph_features, 16, None)
         self.gcn2 = GCN(16, 7, None)
         self.dropout1 = nn.Dropout(p = 0.4)
         self.dropout2 = nn.Dropout(p = 0.4)
-        self.energy_output = nn.Linear(7, 1)
-
 
     def forward(self, g, features):
         x = self.gcn1(g, features)
@@ -91,8 +89,8 @@ def evaluate(model, g, features, labels, mask):
         correct = th.sum(indices == labels)
         return correct.item() * 1.0 / len(labels)
 
-def draw_features():
-  return th.FloatTensor(1433).uniform_(-.0001, .0001)
+def draw_features(dim):
+  return th.FloatTensor(dim).uniform_(-.0001, .0001)
 
 def sgld(n_steps, x_k, random_mask):
     for k in range(n_steps):
@@ -104,19 +102,16 @@ def sgld(n_steps, x_k, random_mask):
         x_k.data += sgld_lr * f_prime + sgld_std * noise
     return x_k
 
-def draw_rows(random_batch):
+def draw_rows(random_batch, dim):
   rows = []
   for i in range(random_batch):
-    new_row = draw_features()
+    new_row = draw_features(dim)
     new_row = new_row.to('cuda:0')
     rows.append(new_row)
   return rows
             
 
-net = Net()
-net = net.to('cuda:0')
-features = features.to('cuda:0')
-labels = labels.to('cuda:0')
+
 
 g, features, labels, train_mask, test_mask = load_cora_data()
 
@@ -132,6 +127,14 @@ sgld_std = 1e-2
 rho = 0.05
 n_steps = 20
 random_batch = 1
+num_features = len(features[0])
+num_nodes = len(features)
+
+net = Net(num_features)
+net = net.to('cuda:0')
+features = features.to('cuda:0')
+labels = labels.to('cuda:0')
+
 for epoch in range(1000):
     if epoch >=3:
         t0 = time.time()
@@ -143,8 +146,8 @@ for epoch in range(1000):
     if epoch % 100 == 0:
       sgld_lr *= .1
     if epoch == 0:
-        rows = draw_rows(random_batch)
-        random_mask = random.sample(range(0, 2708), random_batch)
+        rows = draw_rows(random_batch, dim)
+        random_mask = random.sample(range(0, num_nodes), random_batch)
         x_k = features.clone()
         for i, j in zip(random_mask, range(len(random_mask))):
           x_k[i] = rows[j]
@@ -166,8 +169,8 @@ for epoch in range(1000):
             for key in keys:
               replay_buffer[key] = x_k[int(key)]
         else:
-            rows = draw_rows(random_batch)
-            random_mask = random.sample(range(0, 2708), random_batch)
+            rows = draw_rows(random_batch, dim)
+            random_mask = random.sample(range(0, num_nodes), random_batch)
             x_k = features.clone()
             for i, j in zip(random_mask, range(len(random_mask))):
               x_k[i] = rows[j]
