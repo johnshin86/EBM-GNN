@@ -95,7 +95,7 @@ def draw_features(dim):
 def sgld(n_steps, x_k, random_mask):
     for k in range(n_steps):
         out = net(g,x_k)
-        f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum(), [x_k],retain_graph=True)[0]
+        f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum()/out.logsumexp(1).sum(), [x_k],retain_graph=True)[0]
         f_prime[ th.arange(len(f_prime)) != random_mask].zero_()
         noise = th.randn_like(x_k)
         noise[ th.arange(len(noise)) != random_mask].zero_()
