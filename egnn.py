@@ -180,7 +180,10 @@ for epoch in range(1000):
             for i in random_mask:
               replay_buffer[str(i)] = x_k[i]
 
-    L_gen = th.abs(net(g, features).logsumexp(1)[random_mask].sum()/net(g, features).logsumexp(1).sum() - net(g, x_k).logsumexp(1)[random_mask].sum()/net(g, x_k).logsumexp(1).sum())
+    clf_energy = net(g, features).logsumexp(1)
+    gen_energy = net(g, x_k).logsumexp(1)
+
+    L_gen = th.abs(clf_energy[random_mask].sum()/clf_energy.sum() - gen_energy[random_mask].sum()/gen_energy.sum())
     loss = L_gen + L_clf
     optimizer.zero_grad()
     loss.backward()
