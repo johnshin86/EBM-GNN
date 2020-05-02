@@ -198,3 +198,17 @@ for epoch in range(1000):
       print("Training Hybrid")
       print("Epoch {:05d} | Loss {:.4f} | Test Acc {:.4f} | Time(s) {:.4f}".format(
             epoch, loss.item(), acc, np.mean(dur)))
+
+    if epoch % 100 == 0:
+      M = g.adjacency_matrix()
+      A = M.to_dense().numpy()
+      dist_gt = th.zeros(len(gen_energy),len(gen_energy))
+      dist_gt = th.abs(th.clone(gen_energy).view(1,-1) - th.clone(gen_energy).view(-1,1))
+      dist_gt[ dist_gt < 1e-4] = 1.0
+      dist_gt[ dist_gt > 1e-4] = 0.0
+      dist_gt = dist_gt.detach().cpu().numpy()
+      A = A + dist_gt
+      A = scipy.sparse.csr_matrix(A)
+      g = dgl.DGLGraph()
+      g.from_scipy_sparse_matrix(A)
+      g = g.to("cuda:0")
