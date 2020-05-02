@@ -96,9 +96,9 @@ def sgld(n_steps, x_k, random_mask):
     for k in range(n_steps):
         out = net(g,x_k)
         f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum()/out.logsumexp(1).sum(), [x_k],retain_graph=True)[0]
-        f_prime[ th.arange(len(f_prime)) != random_mask].zero_()
+        f_prime[ np.arange(len(f_prime)) != random_mask].zero_()
         noise = th.randn_like(x_k)
-        noise[ th.arange(len(noise)) != random_mask].zero_()
+        noise[ np.arange(len(noise)) != random_mask].zero_()
         x_k.data += sgld_lr * f_prime + sgld_std * noise
     return x_k
 
@@ -125,7 +125,7 @@ sgld_lr = 1.
 sgld_std = 1e-2
 rho = 0.05
 n_steps = 20
-random_batch = 1
+random_batch = 8
 num_features = len(features[0])
 num_nodes = len(features)
 
@@ -135,6 +135,7 @@ features = features.to('cuda:0')
 labels = labels.to('cuda:0')
 optimizer = th.optim.Adam(net.parameters(), lr=1e-2)
 
+test_per = []
 
 for epoch in range(1000):
     if epoch >=3:
@@ -180,16 +181,37 @@ for epoch in range(1000):
             for i in random_mask:
               replay_buffer[str(i)] = x_k[i]
 
+ 
     W0 = net.gcn1.apply_mod.linear.weight
     W0_n = np.shape(W0)[0]
     W1 = net.gcn2.apply_mod.linear.weight
     W1_n = np.shape(W1)[0]
-
+    
     clf_energy = net(g, features).logsumexp(1)
     gen_energy = net(g, x_k).logsumexp(1)
 
+    
+    if epoch % 50 == 0 and epoch > 1:
+        M = g.adjacency_matrix()
+        A = M.to_dense().numpy()
+        dist_gt = th.zeros(len(gen_energy),len(gen_energy))
+        dist_gt = th.abs(th.clone(gen_energy).view(1,-1) - th.clone(gen_energy).view(-1,1))
+  
+        dist_gt = dist_gt.detach().cpu().numpy()
+        dist_gt = (dist_gt < 0.001).astype(int)
+        
+        for ind in random_mask:
+            A[ind,:] = A[ind,:] + dist_gt[ind,:]
+            A[:,ind] = A[:,ind] + dist_gt[:,ind]
+        
+        A = scipy.sparse.csr_matrix(A)
+        g = dgl.DGLGraph()
+        g.from_scipy_sparse_matrix(A)
+        g = g.to("cuda:0")
+    
+    
     L_gen = th.abs(clf_energy[random_mask].sum()/clf_energy.sum() - gen_energy[random_mask].sum()/gen_energy.sum())
-    loss = L_gen + L_clf + th.norm(th.mm(W0, W0.t()) - th.eye(W0_n).to("cuda:0")) + th.norm(th.mm(W1, W1.t()) - th.eye(W1_n).to("cuda:0")) 
+    loss = L_gen + L_clf + th.norm(th.mm(W0, W0.t()) - th.eye(W0_n).to("cuda:0")) + th.norm(th.mm(W1, W1.t()) - th.eye(W1_n).to("cuda:0"))
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
@@ -199,21 +221,10 @@ for epoch in range(1000):
 
 
     acc = evaluate(net, g, features, labels, test_mask)
+    test_per.append(acc)
     if epoch % 50 == 0:
-      print("Training Hybrid")
-      print("Epoch {:05d} | Loss {:.4f} | Test Acc {:.4f} | Time(s) {:.4f}".format(
+        print("Training Hybrid")
+        print("Epoch {:05d} | Loss {:.4f} | Test Acc {:.4f} | Time(s) {:.4f}".format(
             epoch, loss.item(), acc, np.mean(dur)))
-
-    if epoch % 100 == 0:
-      M = g.adjacency_matrix()
-      A = M.to_dense().numpy()
-      dist_gt = th.zeros(len(gen_energy),len(gen_energy))
-      dist_gt = th.abs(th.clone(gen_energy).view(1,-1) - th.clone(gen_energy).view(-1,1))
-      dist_gt[ dist_gt < 1e-4] = 1.0
-      dist_gt[ dist_gt > 1e-4] = 0.0
-      dist_gt = dist_gt.detach().cpu().numpy()
-      A = A + dist_gt
-      A = scipy.sparse.csr_matrix(A)
-      g = dgl.DGLGraph()
-      g.from_scipy_sparse_matrix(A)
-      g = g.to("cuda:0")
+        
+print("Max test accuracy: " + str(max(test_per)))
