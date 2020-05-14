@@ -189,8 +189,13 @@ for epoch in range(1000):
     
     clf_energy = net(g, features).logsumexp(1)
     gen_energy = net(g, x_k).logsumexp(1)
-
     
+    L_gen = th.abs(clf_energy[random_mask].sum()/clf_energy.sum() - gen_energy[random_mask].sum()/gen_energy.sum())
+    loss = L_gen + L_clf + th.norm(th.mm(W0, W0.t()) - th.eye(W0_n).to("cuda:0")) + th.norm(th.mm(W1, W1.t()) - th.eye(W1_n).to("cuda:0"))
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
     if epoch % 50 == 0 and epoch > 1:
         M = g.adjacency_matrix()
         A = M.to_dense().numpy()
@@ -208,13 +213,6 @@ for epoch in range(1000):
         g = dgl.DGLGraph()
         g.from_scipy_sparse_matrix(A)
         g = g.to("cuda:0")
-    
-    
-    L_gen = th.abs(clf_energy[random_mask].sum()/clf_energy.sum() - gen_energy[random_mask].sum()/gen_energy.sum())
-    loss = L_gen + L_clf + th.norm(th.mm(W0, W0.t()) - th.eye(W0_n).to("cuda:0")) + th.norm(th.mm(W1, W1.t()) - th.eye(W1_n).to("cuda:0"))
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
 
     if epoch >=3:
         dur.append(time.time() - t0)
