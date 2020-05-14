@@ -114,6 +114,7 @@ def draw_rows(random_batch, dim):
 
 
 g, features, labels, train_mask, test_mask = load_cora_data()
+f = g
 
 for i in range(len(features)):
     features[i,:] = features[i,:]/th.norm(features[i,:])
@@ -197,7 +198,7 @@ for epoch in range(1000):
     optimizer.step()
 
     if epoch % 50 == 0 and epoch > 1:
-        M = g.adjacency_matrix()
+        M = f.adjacency_matrix()
         A = M.to_dense().numpy()
         dist_gt = th.zeros(len(gen_energy),len(gen_energy))
         dist_gt = th.abs(th.clone(gen_energy).view(1,-1) - th.clone(gen_energy).view(-1,1))
