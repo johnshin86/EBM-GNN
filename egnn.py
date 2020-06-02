@@ -8,7 +8,6 @@ from torch.autograd import Function
 from torch.nn.parameter import Parameter
 from dgl.data import citation_graph as citegrh
 import networkx as nx
-#from dgl.data import AmazonCoBuy
 import dgl.data
 import time
 import numpy as np
@@ -16,6 +15,9 @@ import scipy.sparse
 import random
 
 class NodeApplyModule(nn.Module):
+    """
+    Apply a linear transformation, W, and an activation function F(*) to a node.
+    """
     def __init__(self, in_feats, out_feats, activation):
         super(NodeApplyModule, self).__init__()
         self.linear = nn.Linear(in_feats, out_feats)
@@ -28,6 +30,10 @@ class NodeApplyModule(nn.Module):
         return {'h' : h}
 
 class GCN(nn.Module):
+    """
+    A graph convolutional network. Perform message passing over the graph, and apply linear transformation,
+    W, and activation function F(*) to a node.
+    """
     def __init__(self, in_feats, out_feats, activation):
       super(GCN, self).__init__()
       self.apply_mod = NodeApplyModule(in_feats, out_feats, activation)
@@ -39,6 +45,9 @@ class GCN(nn.Module):
       return g.ndata.pop('h')
 
 class Net(nn.Module):
+    """
+    Build network with multiple GCN layers and dropout.
+    """
     def __init__(self, graph_features):
         super(Net, self).__init__()
         self.gcn1 = GCN(graph_features, 16, None)
@@ -54,6 +63,9 @@ class Net(nn.Module):
         return x
 
 def load_cora_data():
+    """
+    Load the CORA dataset.
+    """
     data = citegrh.load_cora()
     features = th.FloatTensor(data.features)
     labels = th.LongTensor(data.labels)
@@ -67,6 +79,9 @@ def load_cora_data():
     return g, features, labels, train_mask, test_mask
 
 def load_pubmed():
+    """
+    Load the PUBMED dataset.
+    """
     data = dgl.data.CitationGraphDataset('pubmed')
     features = th.FloatTensor(data.features)
     labels = th.LongTensor(data.labels)
@@ -80,6 +95,11 @@ def load_pubmed():
     return g, features, labels, train_mask, test_mask
 
 def evaluate(model, g, features, labels, mask):
+    """
+    Evaluate the model on the test set.
+    Input: Model, graph, features, labels, mask
+    Return: Fraction correct.
+    """
     model.eval()
     with th.no_grad():
         logits = model(g,features)
@@ -90,9 +110,17 @@ def evaluate(model, g, features, labels, mask):
         return correct.item() * 1.0 / len(labels)
 
 def draw_features(dim):
-  return th.FloatTensor(dim).uniform_(-.0001, .0001)
+    """
+    Draw random features from a uniform distribution of dimension dim.
+    """
+    return th.FloatTensor(dim).uniform_(-.0001, .0001)
 
 def sgld(n_steps, x_k, random_mask):
+    """
+    Perform Stochastic Gradient Langevin Dynamics over the features.
+    Input: number of SGLD steps, n_steps. Features to iterate over, x_k. Mask for generated features, random_mask.
+    Return: New set of generative features, x_k.
+    """
     for k in range(n_steps):
         out = net(g,x_k)
         f_prime = th.autograd.grad(out.logsumexp(1)[random_mask].sum()/out.logsumexp(1).sum(), [x_k],retain_graph=True)[0]
@@ -103,12 +131,15 @@ def sgld(n_steps, x_k, random_mask):
     return x_k
 
 def draw_rows(random_batch, dim):
-  rows = []
-  for i in range(random_batch):
-    new_row = draw_features(dim)
-    new_row = new_row.to('cuda:0')
-    rows.append(new_row)
-  return rows
+    """
+    Draw a random batch of size random_batch and dimension dim of features.
+    """
+    rows = []
+    for i in range(random_batch):
+        new_row = draw_features(dim)
+        new_row = new_row.to('cuda:0')
+        rows.append(new_row)
+    return rows
 
 
 
@@ -116,9 +147,13 @@ def draw_rows(random_batch, dim):
 g, features, labels, train_mask, test_mask = load_cora_data()
 f = g
 
+
+# Normalize the features.
+
 for i in range(len(features)):
     features[i,:] = features[i,:]/th.norm(features[i,:])
 
+# Parameters for SGLD.
 
 dur = []
 replay_buffer = {}
