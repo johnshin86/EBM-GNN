@@ -183,6 +183,7 @@ for epoch in range(1000):
     L_clf = F.nll_loss(logp[train_mask], labels[train_mask])
     if epoch % 100 == 0:
       sgld_lr *= .1
+    # Perform an inner SGLD loop.
     if epoch == 0:
         rows = draw_rows(random_batch, num_features)
         random_mask = random.sample(range(0, num_nodes), random_batch)
@@ -194,6 +195,7 @@ for epoch in range(1000):
         for i in random_mask:
           replay_buffer[str(i)] = x_k[i]
 
+    # Random draw for replay buffer. Perform SGLD.
     else:
         flip = random.uniform(0, 1)
         if flip < 1 - rho:
@@ -217,7 +219,8 @@ for epoch in range(1000):
             for i in random_mask:
               replay_buffer[str(i)] = x_k[i]
 
- 
+    # Gather weights for orthogonalization.
+
     W0 = net.gcn1.apply_mod.linear.weight
     W0_n = np.shape(W0)[0]
     W1 = net.gcn2.apply_mod.linear.weight
