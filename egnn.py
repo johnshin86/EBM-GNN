@@ -15,8 +15,8 @@ import scipy.sparse
 import random
 
 class NodeApplyModule(nn.Module):
-    """
-    Apply a linear transformation, W, and an activation function F(*) to a node.
+    """Apply a linear transformation, W, and an activation 
+    function F(*) to all nodes.
     """
     def __init__(self, in_feats, out_feats, activation):
         super(NodeApplyModule, self).__init__()
@@ -24,29 +24,32 @@ class NodeApplyModule(nn.Module):
         self.activation = activation
 
     def forward(self, node):
+        """Apply Linear Transform and activation. 
+        """
         h = self.linear(node.data['h'])
         if self.activation is not None:
             h = self.activation(h)
         return {'h' : h}
 
 class GCN(nn.Module):
-    """
-    A graph convolutional network. Perform message passing over the graph, and apply linear transformation,
-    W, and activation function F(*) to a node.
+    """A graph convolutional network. Perform message passing over the graph,
+    and apply linear transformation, W, and activation function F(*) to a node.
     """
     def __init__(self, in_feats, out_feats, activation):
-      super(GCN, self).__init__()
-      self.apply_mod = NodeApplyModule(in_feats, out_feats, activation)
+        super(GCN, self).__init__()
+        self.apply_mod = NodeApplyModule(in_feats, out_feats, activation)
 
     def forward(self, g,feature):
-      g.ndata['h'] = feature
-      g.update_all(fn.copy_src(src='h', out='m'), fn.sum(msg='m', out='h')  )
-      g.apply_nodes(func=self.apply_mod)
-      return g.ndata.pop('h')
+        """Foward pass of the GCN layer. Perform message passing, and apply
+        appl_nodes() to the graph.
+        """
+        g.ndata['h'] = feature
+        g.update_all(fn.copy_src(src='h', out='m'), fn.sum(msg='m', out='h')  )
+        g.apply_nodes(func=self.apply_mod)
+        return g.ndata.pop('h')
 
 class Net(nn.Module):
-    """
-    Build network with multiple GCN layers and dropout.
+    """Build network with multiple GCN layers and dropout.
     """
     def __init__(self, graph_features):
         super(Net, self).__init__()
@@ -56,6 +59,8 @@ class Net(nn.Module):
         self.dropout2 = nn.Dropout(p = 0.4)
 
     def forward(self, g, features):
+        """Perform 2 GCN operations with dropout.
+        """
         x = self.gcn1(g, features)
         x = self.dropout1(x)
         x = self.gcn2(g, x)
@@ -72,8 +77,7 @@ def load_cora_data():
     train_mask = th.BoolTensor(data.train_mask)
     test_mask = th.BoolTensor(data.test_mask)
     g = data.graph
-    # add self loop
-    g.remove_edges_from(nx.selfloop_edges(g))
+    g.remove_edges_from(nx.selfloop_edges(g)) # add self loop
     g = DGLGraph(g)
     g.add_edges(g.nodes(), g.nodes())
     return g, features, labels, train_mask, test_mask
@@ -88,15 +92,13 @@ def load_pubmed():
     train_mask = th.BoolTensor(data.train_mask)
     test_mask = th.BoolTensor(data.test_mask)
     g = data.graph
-    # add self loop
-    g.remove_edges_from(nx.selfloop_edges(g))
+    g.remove_edges_from(nx.selfloop_edges(g)) # add self loop
     g = DGLGraph(g)
     g.add_edges(g.nodes(), g.nodes())
     return g, features, labels, train_mask, test_mask
 
 def evaluate(model, g, features, labels, mask):
-    """
-    Evaluate the model on the test set.
+    """Evaluate the model on the test set.
     Input: Model, graph, features, labels, mask
     Return: Fraction correct.
     """
@@ -110,14 +112,12 @@ def evaluate(model, g, features, labels, mask):
         return correct.item() * 1.0 / len(labels)
 
 def draw_features(dim):
-    """
-    Draw random features from a uniform distribution of dimension dim.
+    """Draw random features from a uniform distribution of dimension dim.
     """
     return th.FloatTensor(dim).uniform_(-.0001, .0001)
 
 def sgld(n_steps, x_k, random_mask):
-    """
-    Perform Stochastic Gradient Langevin Dynamics over the features.
+    """Perform Stochastic Gradient Langevin Dynamics over the features.
     Input: number of SGLD steps, n_steps. Features to iterate over, x_k. Mask for generated features, random_mask.
     Return: New set of generative features, x_k.
     """
@@ -131,8 +131,7 @@ def sgld(n_steps, x_k, random_mask):
     return x_k
 
 def draw_rows(random_batch, dim):
-    """
-    Draw a random batch of size random_batch and dimension dim of features.
+    """Draw a random batch of size random_batch and dimension dim of features.
     """
     rows = []
     for i in range(random_batch):
@@ -147,13 +146,8 @@ def draw_rows(random_batch, dim):
 g, features, labels, train_mask, test_mask = load_cora_data()
 f = g
 
-
-# Normalize the features.
-
-for i in range(len(features)):
+for i in range(len(features)): # Normalize the features.
     features[i,:] = features[i,:]/th.norm(features[i,:])
-
-# Parameters for SGLD.
 
 dur = []
 replay_buffer = {}
@@ -234,6 +228,8 @@ for epoch in range(1000):
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
+
+    # Adjust adjacency matrix.
 
     if epoch % 50 == 0 and epoch > 1:
         M = f.adjacency_matrix()
